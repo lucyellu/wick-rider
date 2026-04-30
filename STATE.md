@@ -6,6 +6,16 @@
 
 ---
 
+## 🌐 Trading-game family (sister projects)
+
+All three games share Firebase project `games-8d8a6` with separate `game:` tags so leaderboards don't cross-pollute. All three use the same Yahoo Finance proxy chain (`allorigins.win` primary, `corsproxy.io` fallback — corsproxy.io 403'd free tier 2026-04).
+
+| Project | Folder | Local port | GitHub | Live URL |
+|---|---|---|---|---|
+| **Trade By Wire** | `../trade_by_wire/` | 8089 | https://github.com/lucyellu/trade-by-wire | https://trade-by-wire.netlify.app/ |
+| **Plush Rush** | `../plushies/` (`game_001.html`) | 8088 | https://github.com/lucyellu/plush-rush | https://plush-rush.netlify.app/game_001.html |
+| **Wick Rider** | `./` | 9001 | https://github.com/lucyellu/wick-rider | https://wick-rider.netlify.app/ |
+
 ## 🎯 PICK UP HERE (cold-start pointer)
 
 - **Project folder:** `C:\Users\lucyl\Desktop\hold\projects\stocks_app\wick_rider\`
