@@ -427,6 +427,46 @@
     .summary-card .sum-btn.ghost { border-color: var(--rule-2); color: var(--ink-dim); font-size: 14px; }
     .summary-card .sum-btn.ghost:hover { background: var(--ink-dim); color: var(--bg); }
 
+    /* ─── Calendar overlay ────────────────────────────────────── */
+    .cal-head { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; font-size: 13px; letter-spacing: 2px; color: var(--ink); font-family: 'VT323', monospace; }
+    .cal-head button { background: transparent; border: 1px solid var(--rule-2); color: var(--ink-dim);
+      width: 26px; height: 26px; cursor: pointer; font-family: 'VT323', monospace; font-size: 16px; }
+    .cal-head button:hover { background: var(--ink-dim); color: var(--bg); }
+    .cal-title { flex: 1; text-align: center; }
+    .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+    .cal-weekday { font-size: 9px; color: var(--ink-mute); text-transform: uppercase; text-align: center; padding: 3px 0; letter-spacing: 1.5px; font-family: 'IBM Plex Mono', monospace; }
+    .cal-day {
+      aspect-ratio: 1 / 1; background: transparent;
+      border: 1px solid var(--rule);
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      font-family: 'VT323', monospace; color: var(--ink-mute);
+      cursor: not-allowed; font-size: 14px; position: relative;
+    }
+    .cal-day.empty { border: none; }
+    .cal-day.available { color: var(--ink); cursor: pointer; border-color: var(--rule-2); }
+    .cal-day.available:hover { background: var(--ink); color: var(--bg); }
+    .cal-day.today { border-color: var(--ink); }
+    .cal-day .d-num { font-size: 14px; line-height: 1; }
+    .cal-day .d-tag { font-size: 8px; line-height: 1; margin-top: 3px; opacity: 0.7; letter-spacing: 1px; }
+
+    /* ─── Leaderboard overlay (list of top N) ─────────────────── */
+    .lb-list { margin-top: 10px; max-height: 50vh; overflow-y: auto; border-top: 1px solid var(--rule-2); }
+    .lb-row {
+      display: grid; grid-template-columns: 28px 22px 1fr auto; gap: 8px; align-items: center;
+      padding: 6px 4px; border-bottom: 1px solid var(--rule);
+      font-family: 'Share Tech Mono', monospace; font-size: 12px;
+    }
+    .lb-row .lb-rank { color: var(--ink-mute); text-align: right; }
+    .lb-row .lb-flag img { display: inline-block; vertical-align: middle; height: 12px; border: 1px solid var(--rule-2); }
+    .lb-row .lb-name { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .lb-row .lb-pnl  { color: var(--profit); font-weight: bold; font-family: 'VT323', monospace; font-size: 14px; }
+    .lb-row .lb-pnl.loss { color: var(--loss); }
+    .lb-row.me { border-left: 2px solid var(--ink); padding-left: 6px; }
+    .lb-empty { padding: 18px 6px; text-align: center; color: var(--ink-mute); font-size: 11px; letter-spacing: 1.5px; font-family: 'IBM Plex Mono', monospace; }
+
+    /* Wider summary card for cal/lb overlays */
+    .summary-card.wide { max-width: 600px; min-width: 380px; }
+
     /* ─── Mobile portrait ─────────────────────────────────────── */
     @media (max-width: 700px) and (orientation: portrait) {
       #frame {
@@ -598,8 +638,12 @@
         <div><div class="lbl">WIN RATE</div><div class="val" id="sum-winrate">0%</div></div>
         <div><div class="lbl">VS BENCH</div><div class="val" id="sum-bench">—</div></div>
       </div>
+      <div class="sum-status" id="sum-submit-status" style="text-align:center;font-size:11px;letter-spacing:1.5px;color:var(--ink-mute);margin-bottom:10px;">—</div>
       <button class="sum-btn" id="sum-replay">&gt; REPLAY</button>
-      <button class="sum-btn ghost" id="sum-newticker">&gt; NEW TICKER</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
+        <button class="sum-btn ghost" id="sum-newticker">&gt; NEW TICKER</button>
+        <button class="sum-btn ghost" id="sum-lb">&gt; LEADERBOARD</button>
+      </div>
     </div>
   </div>
 
@@ -608,10 +652,57 @@
     <div class="summary-card">
       <div class="panel-lbl">000 · setup</div>
       <h2>WICK RIDER</h2>
-      <div class="setup-sub">enter a ticker · default SPY</div>
+      <div class="setup-sub" id="ticker-greet">enter a ticker · default SPY</div>
       <input id="ticker-input" type="text" maxlength="6" placeholder="SPY" autocomplete="off" spellcheck="false">
       <div class="setup-status" id="ticker-status">last trading day · 1min · 60×</div>
       <button class="sum-btn" id="ticker-go">&gt; OPEN MARKET</button>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:6px;">
+        <button class="sum-btn ghost" id="ticker-cal">&gt; PICK DATE</button>
+        <button class="sum-btn ghost" id="ticker-lb">&gt; LEADERBOARD</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onboarding modal (name + flag, first visit only) -->
+  <div id="ob-overlay" class="overlay">
+    <div class="summary-card">
+      <div class="panel-lbl">000 · trader</div>
+      <h2>NEW TRADER</h2>
+      <div class="setup-sub">tag your leaderboard entries</div>
+      <input id="ob-name" type="text" maxlength="14" placeholder="trader_001" autocomplete="off">
+      <select id="ob-flag" style="width:100%;background:#000;border:1px solid var(--rule-2);color:var(--ink);font-family:'Share Tech Mono',monospace;font-size:14px;padding:8px 10px;outline:none;letter-spacing:1px;margin-bottom:8px;"></select>
+      <button class="sum-btn" id="ob-start">&gt; ENTER MARKET</button>
+      <div class="setup-status" style="margin-top:8px;">saved locally · skip if you don't care</div>
+      <button class="sum-btn ghost" id="ob-skip">&gt; SKIP (PLAY ANON)</button>
+    </div>
+  </div>
+
+  <!-- Calendar overlay (pick a past trading day) -->
+  <div id="cal-overlay" class="overlay">
+    <div class="summary-card wide">
+      <div class="panel-lbl">000 · calendar</div>
+      <div class="cal-head">
+        <button id="cal-prev">&lt;</button>
+        <span class="cal-title" id="cal-title">—</span>
+        <button id="cal-next">&gt;</button>
+      </div>
+      <div class="setup-sub" id="cal-sym-lbl">SPY · TAP A WEEKDAY · LAST 7 DAYS PLAYABLE</div>
+      <div class="cal-grid" id="cal-grid"></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-top:14px;">
+        <button class="sum-btn ghost" id="cal-back">&gt; BACK</button>
+        <button class="sum-btn" id="cal-today">&gt; TODAY</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Leaderboard overlay -->
+  <div id="lb-overlay" class="overlay">
+    <div class="summary-card wide">
+      <div class="panel-lbl">000 · leaderboard</div>
+      <h2>LEADERBOARD</h2>
+      <div class="setup-sub">top traders · live from all desks</div>
+      <div id="lb-list" class="lb-list"><div class="lb-empty">&gt; CONNECTING...</div></div>
+      <button class="sum-btn ghost" id="lb-close" style="margin-top:14px;">&gt; CLOSE</button>
     </div>
   </div>
 
@@ -681,6 +772,7 @@
     elapsedMs: 0,
     started: false,
     ended: false,
+    submitted: false,
   };
   const curPrice = () => {
     const b = state.bars[state.curBarIdx];
@@ -943,6 +1035,257 @@
     el.classList.add('show');
     if (_toastTimer) clearTimeout(_toastTimer);
     _toastTimer = setTimeout(() => el.classList.remove('show'), ms);
+  }
+
+  // ─── Profile + flags ──────────────────────────────────────────
+  const PROFILE_KEY = 'wick_profile';
+  const FLAGS = [
+    ['🇺🇸','US'],['🇨🇦','CA'],['🇲🇽','MX'],['🇧🇷','BR'],['🇬🇧','UK'],
+    ['🇮🇪','IE'],['🇫🇷','FR'],['🇩🇪','DE'],['🇪🇸','ES'],['🇮🇹','IT'],
+    ['🇸🇪','SE'],['🇳🇴','NO'],['🇫🇮','FI'],['🇳🇱','NL'],['🇨🇭','CH'],
+    ['🇵🇱','PL'],['🇺🇦','UA'],['🇹🇷','TR'],['🇮🇱','IL'],['🇦🇪','AE'],
+    ['🇮🇳','IN'],['🇵🇰','PK'],['🇨🇳','CN'],['🇯🇵','JP'],['🇰🇷','KR'],
+    ['🇹🇼','TW'],['🇭🇰','HK'],['🇸🇬','SG'],['🇲🇾','MY'],['🇮🇩','ID'],
+    ['🇵🇭','PH'],['🇹🇭','TH'],['🇻🇳','VN'],['🇦🇺','AU'],['🇳🇿','NZ'],
+    ['🇿🇦','ZA'],['🇪🇬','EG'],['🇳🇬','NG'],['🇰🇪','KE'],['🇦🇷','AR'],
+    ['🇨🇱','CL'],['🇵🇪','PE'],['🇨🇴','CO'],['🇻🇪','VE'],['🏳️','--'],
+  ];
+  const FLAG_TO_CODE = Object.fromEntries(FLAGS);
+  function getProfile() {
+    try { return JSON.parse(localStorage.getItem(PROFILE_KEY)) || { name:'', flag:'🏳️' }; }
+    catch { return { name:'', flag:'🏳️' }; }
+  }
+  function saveProfile(p) { localStorage.setItem(PROFILE_KEY, JSON.stringify(p)); }
+  function flagImgHTML(flagEmoji) {
+    const code = FLAG_TO_CODE[flagEmoji] || '';
+    if (!code || code === '--') return '🏳️';
+    return `<img src="https://flagcdn.com/24x18/${code.toLowerCase()}.png" alt="${code}">`;
+  }
+
+  // ─── Firebase REST (shared with TBW + Plushie Rush; tagged game:'wick') ──
+  const FIREBASE_DB  = 'https://games-8d8a6-default-rtdb.firebaseio.com';
+  const FB_NAMESPACE = 'plushrush';
+  const MIN_LOG_MS   = 10000;
+
+  async function fbWrite(path, data) {
+    try {
+      const r = await fetch(`${FIREBASE_DB}/${FB_NAMESPACE}/${path}.json`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+      if (!r.ok) return null;
+      return (await r.json()).name;
+    } catch { return null; }
+  }
+  async function fbRead(path) {
+    try {
+      const r = await fetch(`${FIREBASE_DB}/${FB_NAMESPACE}/${path}.json`);
+      if (!r.ok) return null;
+      return await r.json();
+    } catch { return null; }
+  }
+  let _visitTracked = false;
+  function trackVisit() {
+    if (_visitTracked) return;
+    _visitTracked = true;
+    const p = getProfile();
+    fbWrite('visits', {
+      t: Date.now(), game: 'wick',
+      name: p.name || null, flag: p.flag || null,
+      ua: (navigator.userAgent || '').slice(0, 80),
+    });
+  }
+  async function submitToLeaderboard(pnl, pct) {
+    const p = getProfile();
+    const entry = {
+      game: 'wick',
+      name: p.name || 'anon',
+      flag: p.flag || '🏳️',
+      pnl: Math.round(pnl * 100) / 100,
+      pct: Math.round(pct * 10) / 10,
+      elapsed_ms: state.elapsedMs || 0,
+      bars_played: state.curBarIdx + 1,
+      bars_total: state.allBars.length,
+      early: !!(state.elapsedMs && state.curBarIdx + 1 < state.allBars.length),
+      sym: state.sym,
+      date: state.bundleDate,
+      t: Date.now(),
+    };
+    await fbWrite('leaderboard', entry);
+    return entry;
+  }
+  let _lbCache = null, _lbCacheTs = 0;
+  async function fetchGlobalLeaderboard(force=false) {
+    if (!force && _lbCache && (Date.now() - _lbCacheTs) < 10000) return _lbCache;
+    const all = await fbRead('leaderboard');
+    const arr = (all && typeof all === 'object')
+      ? Object.values(all).filter(e => e && e.game === 'wick')
+      : [];
+    _lbCache = arr; _lbCacheTs = Date.now();
+    return arr;
+  }
+  function fmtElapsed(ms) {
+    const s = Math.floor(ms / 1000);
+    return `${Math.floor(s/60)}:${String(s%60).padStart(2,'0')}`;
+  }
+  async function renderLeaderboard(force=false) {
+    const list = document.getElementById('lb-list');
+    list.innerHTML = '<div class="lb-empty">&gt; CONNECTING...</div>';
+    const arr = await fetchGlobalLeaderboard(force);
+    arr.sort((a, b) => (b.pnl || 0) - (a.pnl || 0));
+    const top = arr.slice(0, 30);
+    if (!top.length) { list.innerHTML = '<div class="lb-empty">&gt; NO TRADES POSTED YET. BE THE FIRST.</div>'; return; }
+    const profile = getProfile();
+    list.innerHTML = top.map((e, i) => {
+      const sign = (e.pnl || 0) >= 0 ? '+' : '-';
+      const cls  = (e.pnl || 0) >= 0 ? '' : 'loss';
+      const me = (e.name === profile.name && e.flag === profile.flag) ? ' me' : '';
+      const elapsed = e.elapsed_ms ? fmtElapsed(e.elapsed_ms) : '';
+      const tag = e.early ? ' · <span style="color:var(--ink-mute);">[ early ]</span>' : '';
+      const meta = `${e.sym||''} ${e.date||''}${elapsed ? ' · '+elapsed : ''}${tag}`;
+      const flagHtml = flagImgHTML(e.flag || '🏳️');
+      return `<div class="lb-row${me}">
+        <div class="lb-rank">${i+1}</div>
+        <div class="lb-flag">${flagHtml}</div>
+        <div class="lb-name">${(e.name||'anon').slice(0,14)} <span style="color:var(--ink-mute);font-size:10px;">· ${meta}</span></div>
+        <div class="lb-pnl ${cls}">${sign}$${Math.abs(e.pnl||0).toFixed(0)}</div>
+      </div>`;
+    }).join('');
+    // Update side-panel rank
+    const myIdx = top.findIndex(e => e.name === profile.name && e.flag === profile.flag);
+    const lbRankEl = document.getElementById('lb-rank');
+    const lbMetaEl = document.querySelector('#lb-panel .rank-meta');
+    if (lbRankEl) {
+      if (myIdx >= 0) {
+        lbRankEl.textContent = '#' + (myIdx + 1);
+        if (lbMetaEl) lbMetaEl.textContent = `of ${arr.length} traders`;
+      } else if (profile.name) {
+        lbRankEl.textContent = '—';
+        if (lbMetaEl) lbMetaEl.textContent = 'unranked';
+      }
+    }
+  }
+
+  // ─── Yahoo fetch by specific date (for calendar picks) ────────
+  async function fetchYahooBarsForDate(ticker, dateStr) {
+    ticker = (ticker || '').trim().toUpperCase();
+    if (!/^[A-Z][A-Z0-9.\-]{0,5}$/.test(ticker)) return null;
+    const cacheKey = `${ticker}_${dateStr}`;
+    if (_yahooCache[cacheKey]) return _yahooCache[cacheKey];
+    const start = new Date(dateStr + 'T00:00:00Z').getTime() / 1000;
+    const end = start + 86400;
+    const yahoo = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1m&period1=${Math.floor(start)}&period2=${Math.floor(end)}`;
+    const proxied = `https://corsproxy.io/?url=${encodeURIComponent(yahoo)}`;
+    try {
+      const r = await fetch(proxied, { cache: 'no-store' });
+      if (!r.ok) return null;
+      const j = await r.json();
+      const result = j?.chart?.result?.[0];
+      const ts = result?.timestamp || [];
+      const q  = result?.indicators?.quote?.[0];
+      if (!q || !ts.length) return null;
+      const bars = [];
+      for (let i = 0; i < ts.length; i++) {
+        const c = q.close?.[i];
+        if (typeof c !== 'number' || isNaN(c)) continue;
+        bars.push({
+          t: ts[i] * 1000,
+          o: q.open?.[i] ?? c, h: q.high?.[i] ?? c, l: q.low?.[i] ?? c,
+          c, v: q.volume?.[i] ?? 0,
+        });
+      }
+      if (bars.length < 5) return null;
+      const bundle = { date: dateStr, bars };
+      _yahooCache[cacheKey] = bundle;
+      return bundle;
+    } catch { return null; }
+  }
+
+  // ─── Calendar overlay ─────────────────────────────────────────
+  let _calMonthOffset = 0;
+  function renderCalendar() {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const dt = new Date(today.getFullYear(), today.getMonth() + _calMonthOffset, 1);
+    const year = dt.getFullYear();
+    const month = dt.getMonth();
+    const monthNames = ['JANUARY','FEBRUARY','MARCH','APRIL','MAY','JUNE','JULY','AUGUST','SEPTEMBER','OCTOBER','NOVEMBER','DECEMBER'];
+    document.getElementById('cal-title').textContent = `${monthNames[month]} ${year}`;
+    document.getElementById('cal-sym-lbl').textContent = `${state.sym || 'SPY'} · TAP A WEEKDAY · LAST 7 PLAYABLE`;
+    const grid = document.getElementById('cal-grid');
+    grid.innerHTML = '';
+    ['S','M','T','W','T','F','S'].forEach(w => {
+      const e = document.createElement('div'); e.className = 'cal-weekday'; e.textContent = w;
+      grid.appendChild(e);
+    });
+    const firstWd = new Date(year, month, 1).getDay();
+    for (let i = 0; i < firstWd; i++) {
+      const e = document.createElement('div'); e.className = 'cal-day empty'; grid.appendChild(e);
+    }
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    for (let d = 1; d <= daysInMonth; d++) {
+      const cellDate = new Date(year, month, d);
+      const dow = cellDate.getDay();
+      const dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+      const cell = document.createElement('div');
+      cell.className = 'cal-day';
+      const isToday = cellDate.getTime() === today.getTime();
+      const daysBack = Math.round((today.getTime() - cellDate.getTime()) / 86400000);
+      const isWeekday = dow >= 1 && dow <= 5;
+      const isPlayable = isWeekday && daysBack >= 0 && daysBack <= 7;
+      if (isToday) cell.classList.add('today');
+      if (isPlayable) {
+        cell.classList.add('available');
+        cell.onclick = async () => {
+          state.bundleDate = dateStr;
+          document.getElementById('cal-overlay').classList.remove('show');
+          await startSessionForDate(state.sym || 'SPY', dateStr);
+        };
+        cell.innerHTML = `<div class="d-num">${d}</div>${isToday ? '<div class="d-tag">TODAY</div>' : ''}`;
+      } else {
+        cell.innerHTML = `<div class="d-num" style="opacity:.35">${d}</div>`;
+      }
+      grid.appendChild(cell);
+    }
+  }
+
+  async function startSessionForDate(ticker, dateStr) {
+    state.sym = ticker;
+    document.getElementById('val-ticker').textContent = ticker;
+    document.getElementById('val-session').textContent = 'fetching...';
+    drawPlaceholder();
+    const bundle = await fetchYahooBarsForDate(ticker, dateStr);
+    if (!bundle) {
+      showToast(`no data for ${ticker} ${dateStr}`);
+      document.getElementById('ticker-prompt').classList.add('show');
+      return;
+    }
+    state.allBars = bundle.bars; state.bundleDate = bundle.date;
+    _bootSessionFromBundle();
+  }
+
+  // Helper: assumes state.allBars + state.bundleDate set; resets the rest and starts the loop.
+  function _bootSessionFromBundle() {
+    state.bars = []; state.curBarIdx = -1;
+    state.intraTickIdx = 0; state.intraTicks = [];
+    state.netShares = 0; state.avgEntry = 0;
+    state.realPnL = 0; state.unrealPnL = 0;
+    state.tradeCount = 0; state.winCount = 0;
+    state.trades = []; state.tape = []; state.tradeMarkers = [];
+    state.ended = false; state.started = true; state.submitted = false;
+    state.startedAt = Date.now();
+    renderTape(); updatePortfolio(); updatePosition();
+    state.curBarIdx = 0;
+    const firstBar = state.allBars[0];
+    state.bars.push({ o: firstBar.o, h: firstBar.o, l: firstBar.o, c: firstBar.o, t: firstBar.t });
+    state.intraTicks = synthesizeBarTicks(firstBar.o, firstBar.h, firstBar.l, firstBar.c);
+    state.intraTickIdx = 0;
+    drawAll(); updateSession();
+    if (demoTimer) clearInterval(demoTimer);
+    demoTimer = setInterval(intraTick, intraTickMs());
+    document.getElementById('summary').classList.remove('show');
+    document.getElementById('ticker-prompt').classList.remove('show');
   }
 
   // ─── Candle + sub-pane renderers ──────────────────────────────
@@ -1336,7 +1679,7 @@
     state.realPnL = 0; state.unrealPnL = 0;
     state.tradeCount = 0; state.winCount = 0;
     state.trades = []; state.tape = []; state.tradeMarkers = [];
-    state.ended = false; state.started = true;
+    state.ended = false; state.started = true; state.submitted = false;
     state.startedAt = Date.now();
     renderTape();
     updatePortfolio();
@@ -1382,6 +1725,21 @@
     // Benchmark = buy and hold
     const bench = (state.allBars[state.allBars.length-1].c - state.allBars[0].o) / state.allBars[0].o * 100;
     document.getElementById('sum-bench').textContent = (bench >= 0 ? '+' : '') + bench.toFixed(2) + '%';
+
+    // Auto-submit to leaderboard for sessions >10s (lift from TBW pattern)
+    const statusEl = document.getElementById('sum-submit-status');
+    if (state.elapsedMs > MIN_LOG_MS && !state.submitted && getProfile().name) {
+      state.submitted = true;
+      if (statusEl) statusEl.textContent = '> POSTING TO LEADERBOARD...';
+      submitToLeaderboard(state.realPnL, pct).then(entry => {
+        if (statusEl) statusEl.textContent = entry ? '✓ POSTED TO LEADERBOARD' : '× POST FAILED';
+      }).catch(() => { if (statusEl) statusEl.textContent = '× POST FAILED'; });
+    } else if (state.elapsedMs <= MIN_LOG_MS) {
+      if (statusEl) statusEl.textContent = '× NOT LOGGED (<10s session)';
+    } else if (!getProfile().name) {
+      if (statusEl) statusEl.textContent = '× NOT LOGGED (anon — set name to post)';
+    }
+
     setTimeout(() => document.getElementById('summary').classList.add('show'), 600);
   }
 
@@ -1480,15 +1838,106 @@
       startSession(v || 'SPY');
     }
   });
+  document.getElementById('ticker-cal').addEventListener('click', () => {
+    state.sym = (document.getElementById('ticker-input').value || 'SPY').trim().toUpperCase();
+    document.getElementById('val-ticker').textContent = state.sym;
+    document.getElementById('ticker-prompt').classList.remove('show');
+    document.getElementById('cal-overlay').classList.add('show');
+    _calMonthOffset = 0;
+    renderCalendar();
+  });
+  document.getElementById('ticker-lb').addEventListener('click', () => {
+    document.getElementById('ticker-prompt').classList.remove('show');
+    document.getElementById('lb-overlay').classList.add('show');
+    renderLeaderboard(true);
+  });
+
+  // Calendar overlay buttons
+  document.getElementById('cal-prev').addEventListener('click', () => { _calMonthOffset--; renderCalendar(); });
+  document.getElementById('cal-next').addEventListener('click', () => { _calMonthOffset++; renderCalendar(); });
+  document.getElementById('cal-back').addEventListener('click', () => {
+    document.getElementById('cal-overlay').classList.remove('show');
+    document.getElementById('ticker-prompt').classList.add('show');
+  });
+  document.getElementById('cal-today').addEventListener('click', () => {
+    document.getElementById('cal-overlay').classList.remove('show');
+    startSession(state.sym || 'SPY');
+  });
+
+  // Leaderboard overlay buttons
+  document.getElementById('lb-close').addEventListener('click', () => {
+    document.getElementById('lb-overlay').classList.remove('show');
+    if (state.ended) document.getElementById('summary').classList.add('show');
+    else if (!state.started) document.getElementById('ticker-prompt').classList.add('show');
+  });
+  document.getElementById('sum-lb').addEventListener('click', () => {
+    document.getElementById('summary').classList.remove('show');
+    document.getElementById('lb-overlay').classList.add('show');
+    renderLeaderboard(true);
+  });
+
+  // Right-side LB panel: click to open full leaderboard
+  document.getElementById('lb-panel').style.cursor = 'pointer';
+  document.getElementById('lb-panel').addEventListener('click', () => {
+    document.getElementById('lb-overlay').classList.add('show');
+    renderLeaderboard(true);
+  });
+
+  // Onboarding flow (first visit)
+  function populateFlagSelect() {
+    const sel = document.getElementById('ob-flag');
+    if (sel.children.length > 0) return;
+    FLAGS.forEach(([emoji, code]) => {
+      const opt = document.createElement('option');
+      opt.value = emoji; opt.textContent = `${emoji}  ${code}`;
+      sel.appendChild(opt);
+    });
+    try {
+      const region = (Intl.DateTimeFormat().resolvedOptions().locale || '').split('-')[1];
+      if (region) {
+        const match = FLAGS.find(([_, c]) => c === region.toUpperCase());
+        if (match) sel.value = match[0];
+      }
+    } catch {}
+  }
+  function showOnboardingIfNeeded() {
+    if (getProfile().name) { trackVisit(); return false; }
+    populateFlagSelect();
+    document.getElementById('ob-overlay').classList.add('show');
+    setTimeout(() => document.getElementById('ob-name').focus(), 80);
+    return true;
+  }
+  function finishOnboarding(skip=false) {
+    if (skip) {
+      saveProfile({ name: '', flag: '🏳️' });
+    } else {
+      const name = (document.getElementById('ob-name').value.trim().slice(0, 14)) || '';
+      const flag = document.getElementById('ob-flag').value || '🏳️';
+      saveProfile({ name: name || 'anon', flag });
+    }
+    trackVisit();
+    document.getElementById('ob-overlay').classList.remove('show');
+    document.getElementById('ticker-prompt').classList.add('show');
+    setTimeout(() => document.getElementById('ticker-input').focus(), 80);
+  }
+  document.getElementById('ob-start').addEventListener('click', () => finishOnboarding(false));
+  document.getElementById('ob-skip').addEventListener('click', () => finishOnboarding(true));
+  document.getElementById('ob-name').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); finishOnboarding(false); }
+  });
 
   // ─── Boot ─────────────────────────────────────────────────────
   window.addEventListener('load', () => {
-    applySubpaneVisibility();    // also calls resizeCanvas via rAF
-    applyBwMode();               // body class + button state
+    applySubpaneVisibility();
+    applyBwMode();
     resizeCanvas();
-    // Show ticker prompt; user picks ticker (defaults to SPY)
-    document.getElementById('ticker-prompt').classList.add('show');
-    setTimeout(() => document.getElementById('ticker-input').focus(), 100);
+    // Show onboarding on first visit; otherwise jump straight to ticker prompt
+    if (!showOnboardingIfNeeded()) {
+      document.getElementById('ticker-prompt').classList.add('show');
+      setTimeout(() => document.getElementById('ticker-input').focus(), 100);
+    }
+    // Pre-warm the leaderboard side-panel rank
+    fetchGlobalLeaderboard(true).then(() => renderLeaderboard(false)).catch(() => {});
   });
   window.addEventListener('resize', () => { resizeCanvas(); });
   </script>
