@@ -568,7 +568,7 @@
 
     <!-- ────── CHART (center, dominant) ────── -->
     <div class="panel" id="chart-panel">
-      <span class="panel-lbl">007 · chart · 1min · 60×<span class="bw-pill" id="bw-toggle" title="Toggle B/W mode">B/W</span></span>
+      <span class="panel-lbl">007 · chart · 1min · 60×<span class="bw-pill" id="bw-toggle" title="Toggle B/W mode">B/W</span><span class="bw-pill" id="exit-pill" title="End session and post to leaderboard (X)" style="display:none;">EXIT</span></span>
       <span class="corner-lbl tr" id="chart-price">—</span>
       <span class="corner-lbl bl">workflow · candles</span>
       <span class="corner-lbl br" id="chart-bar">—</span>
@@ -606,6 +606,7 @@
         <div class="ctl-row"><span>buy</span><span class="key">↑ / W</span></div>
         <div class="ctl-row"><span>sell</span><span class="key">↓ / S</span></div>
         <div class="ctl-row"><span>close</span><span class="key">space</span></div>
+        <div class="ctl-row"><span>exit</span><span class="key">x</span></div>
         <div class="ctl-row"><span>b/w</span><span class="key">b</span></div>
         <div class="ctl-row"><span>mute</span><span class="key">m</span></div>
       </div>
@@ -1293,6 +1294,7 @@
     state.intraTicks = synthesizeBarTicks(firstBar.o, firstBar.h, firstBar.l, firstBar.c);
     state.intraTickIdx = 0;
     drawAll(); updateSession();
+    document.getElementById('exit-pill').style.display = '';
     if (demoTimer) clearInterval(demoTimer);
     demoTimer = setInterval(intraTick, intraTickMs());
     document.getElementById('summary').classList.remove('show');
@@ -1705,6 +1707,7 @@
 
     drawAll();
     updateSession();
+    document.getElementById('exit-pill').style.display = '';
 
     if (demoTimer) clearInterval(demoTimer);
     demoTimer = setInterval(intraTick, intraTickMs());
@@ -1716,6 +1719,7 @@
     state.elapsedMs = state.startedAt ? (Date.now() - state.startedAt) : 0;
     if (state.netShares !== 0) closePosition();
     if (demoTimer) { clearInterval(demoTimer); demoTimer = null; }
+    document.getElementById('exit-pill').style.display = 'none';
     drawAll();
     updatePortfolio();
     updatePosition();
@@ -1774,6 +1778,8 @@
       if (e.code === 'ArrowDown' || e.code === 'KeyS' || e.code === 'ArrowLeft'  || e.code === 'KeyA') { setPosition(-1); e.preventDefault(); return; }
       // Space, Esc, or Q all close out fully — Space is the canonical one (matches other trading apps)
       if (e.code === 'Space' || e.code === 'Escape' || e.code === 'KeyQ') { setPosition(0); e.preventDefault(); return; }
+      // X = end the session early (closes any open positions, fires summary, auto-posts if >10s)
+      if (e.code === 'KeyX') { endSession('TRADER EXITED'); e.preventDefault(); return; }
     }
     if (e.code === 'KeyM') {
       audio.muted = !audio.muted; settings.muted = audio.muted; saveSettings();
@@ -1819,6 +1825,47 @@
     updatePosition();
   }
   document.getElementById('bw-toggle').addEventListener('click', toggleBwMode);
+
+  // EXIT pill — end session early (visible only during a live session)
+  document.getElementById('exit-pill').addEventListener('click', () => {
+    if (state.started && !state.ended) endSession('TRADER EXITED');
+  });
+
+  // beforeunload — best-effort submit if user closes the tab mid-session.
+  // Uses navigator.sendBeacon (survives navigation; won't await fetch).
+  window.addEventListener('beforeunload', () => {
+    if (!state.started || state.ended || state.submitted) return;
+    const elapsed = state.startedAt ? (Date.now() - state.startedAt) : 0;
+    if (elapsed <= MIN_LOG_MS) return;
+    const profile = getProfile();
+    if (!profile.name) return;   // anon — don't log
+    // Compute "if we closed right now" P/L
+    const liquidatePnl = state.netShares !== 0
+      ? (curPrice() - state.avgEntry) * state.netShares
+      : 0;
+    const totalPnl = state.realPnL + liquidatePnl;
+    const pct = (totalPnl / STARTING_BALANCE) * 100;
+    const entry = JSON.stringify({
+      game: 'wick',
+      name: profile.name || 'anon',
+      flag: profile.flag || '🏳️',
+      pnl: Math.round(totalPnl * 100) / 100,
+      pct: Math.round(pct * 10) / 10,
+      elapsed_ms: elapsed,
+      bars_played: state.curBarIdx + 1,
+      bars_total: state.allBars.length,
+      early: true,
+      sym: state.sym,
+      date: state.bundleDate,
+      t: Date.now(),
+    });
+    try {
+      navigator.sendBeacon(
+        `${FIREBASE_DB}/${FB_NAMESPACE}/leaderboard.json`,
+        new Blob([entry], { type: 'application/json' })
+      );
+    } catch {}
+  });
 
   // Lazy-init audio on first interaction (Chrome autoplay policy)
   const primeAudio = () => {
