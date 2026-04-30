@@ -781,39 +781,54 @@
 
   // ─── Yahoo Finance fetch (live 1-min bars) ────────────────────
   // Returns {date, bars: [{o,h,l,c,t,v}, ...]} or null.
+  // Goes through a CORS proxy chain — corsproxy.io started 403'ing server-side
+  // requests on free tier (2026-04), so allorigins.win is now primary.
   const _yahooCache = {};
+  const PROXY_CHAIN = [
+    url => `https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`,
+    url => `https://corsproxy.io/?url=${encodeURIComponent(url)}`,
+  ];
+  async function fetchProxied(url) {
+    for (const wrap of PROXY_CHAIN) {
+      try {
+        const r = await fetch(wrap(url), { cache: 'no-store' });
+        if (!r.ok) continue;
+        const text = await r.text();
+        if (!text) continue;
+        try { return JSON.parse(text); } catch { continue; }
+      } catch { /* try next proxy */ }
+    }
+    return null;
+  }
+
   async function fetchYahooBars(ticker) {
     ticker = (ticker || '').trim().toUpperCase();
     if (!/^[A-Z][A-Z0-9.\-]{0,5}$/.test(ticker)) return null;
     if (_yahooCache[ticker]) return _yahooCache[ticker];
     const yahoo = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1m&range=1d`;
-    const proxied = `https://corsproxy.io/?url=${encodeURIComponent(yahoo)}`;
-    try {
-      const r = await fetch(proxied, { cache: 'no-store' });
-      if (!r.ok) return null;
-      const j = await r.json();
-      const result = j?.chart?.result?.[0];
-      const ts = result?.timestamp || [];
-      const q  = result?.indicators?.quote?.[0];
-      if (!q || !ts.length) return null;
-      const bars = [];
-      for (let i = 0; i < ts.length && bars.length < VISIBLE_BARS; i++) {
-        const c = q.close?.[i];
-        if (typeof c !== 'number' || isNaN(c)) continue;
-        bars.push({
-          t: ts[i] * 1000,
-          o: q.open?.[i]  ?? c,
-          h: q.high?.[i]  ?? c,
-          l: q.low?.[i]   ?? c,
-          c, v: q.volume?.[i] ?? 0,
-        });
-      }
-      if (bars.length < 5) return null;
-      const date = new Date(ts[0] * 1000).toISOString().slice(0, 10);
-      const bundle = { date, bars };
-      _yahooCache[ticker] = bundle;
-      return bundle;
-    } catch { return null; }
+    const j = await fetchProxied(yahoo);
+    if (!j) return null;
+    const result = j?.chart?.result?.[0];
+    const ts = result?.timestamp || [];
+    const q  = result?.indicators?.quote?.[0];
+    if (!q || !ts.length) return null;
+    const bars = [];
+    for (let i = 0; i < ts.length && bars.length < VISIBLE_BARS; i++) {
+      const c = q.close?.[i];
+      if (typeof c !== 'number' || isNaN(c)) continue;
+      bars.push({
+        t: ts[i] * 1000,
+        o: q.open?.[i]  ?? c,
+        h: q.high?.[i]  ?? c,
+        l: q.low?.[i]   ?? c,
+        c, v: q.volume?.[i] ?? 0,
+      });
+    }
+    if (bars.length < 5) return null;
+    const date = new Date(ts[0] * 1000).toISOString().slice(0, 10);
+    const bundle = { date, bars };
+    _yahooCache[ticker] = bundle;
+    return bundle;
   }
 
   // Synthesize TICKS_PER_BAR intra-bar prices: walk from o → c, touching h and l along the way.
@@ -1176,30 +1191,26 @@
     const start = new Date(dateStr + 'T00:00:00Z').getTime() / 1000;
     const end = start + 86400;
     const yahoo = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(ticker)}?interval=1m&period1=${Math.floor(start)}&period2=${Math.floor(end)}`;
-    const proxied = `https://corsproxy.io/?url=${encodeURIComponent(yahoo)}`;
-    try {
-      const r = await fetch(proxied, { cache: 'no-store' });
-      if (!r.ok) return null;
-      const j = await r.json();
-      const result = j?.chart?.result?.[0];
-      const ts = result?.timestamp || [];
-      const q  = result?.indicators?.quote?.[0];
-      if (!q || !ts.length) return null;
-      const bars = [];
-      for (let i = 0; i < ts.length; i++) {
-        const c = q.close?.[i];
-        if (typeof c !== 'number' || isNaN(c)) continue;
-        bars.push({
-          t: ts[i] * 1000,
-          o: q.open?.[i] ?? c, h: q.high?.[i] ?? c, l: q.low?.[i] ?? c,
-          c, v: q.volume?.[i] ?? 0,
-        });
-      }
-      if (bars.length < 5) return null;
-      const bundle = { date: dateStr, bars };
-      _yahooCache[cacheKey] = bundle;
-      return bundle;
-    } catch { return null; }
+    const j = await fetchProxied(yahoo);
+    if (!j) return null;
+    const result = j?.chart?.result?.[0];
+    const ts = result?.timestamp || [];
+    const q  = result?.indicators?.quote?.[0];
+    if (!q || !ts.length) return null;
+    const bars = [];
+    for (let i = 0; i < ts.length; i++) {
+      const c = q.close?.[i];
+      if (typeof c !== 'number' || isNaN(c)) continue;
+      bars.push({
+        t: ts[i] * 1000,
+        o: q.open?.[i] ?? c, h: q.high?.[i] ?? c, l: q.low?.[i] ?? c,
+        c, v: q.volume?.[i] ?? 0,
+      });
+    }
+    if (bars.length < 5) return null;
+    const bundle = { date: dateStr, bars };
+    _yahooCache[cacheKey] = bundle;
+    return bundle;
   }
 
   // ─── Calendar overlay ─────────────────────────────────────────
