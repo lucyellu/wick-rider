@@ -1,0 +1,25 @@
+# Personal API keys — never commit
+config.json
+*.env
+.env
+secrets/
+
+# Internal handoff (uncomment to keep STATE.md private)
+# STATE.md
+
+# Claude Code local settings
+.claude/
+
+# Local-dev only
+_make_shortcut.ps1
+wick_launch.bat
+_wick_test.mjs
+_served.html
+
+# OS junk
+.DS_Store
+Thumbs.db
+*.swp
+.vscode/
+.idea/
+*.tmp
